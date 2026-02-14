@@ -1,4 +1,18 @@
-import { Product, CaseStudy } from './types';
+import { Product, CaseStudy, CloudSettings } from './types';
+
+// =========================================================================
+// [公开读取配置] - PUBLIC_READ_CONFIG
+// 作用：告诉普通访客的浏览器去哪里获取最新的网站数据。
+// 安全建议：
+// 1. endpointUrl: 必须与您在后台发布的 Bin URL 一致。
+// 2. apiKey: 建议使用 JSONBin 的 "Read Access Key" (只读密钥)。
+//    即使此文件被公开，别人也无法篡改您的数据，只能读取。
+// =========================================================================
+export const PUBLIC_READ_CONFIG: CloudSettings = {
+  enabled: true, 
+  endpointUrl: "https://api.jsonbin.io/v3/b/69902ccc43b1c97be97e15f3", 
+  apiKey: "$2a$10$92Ys3I7VKmCRv2W1BT3kbuBQDOQ3LY1mUq8JjxAnPx4/x3nbkp4Xa" 
+};
 
 export const INITIAL_PRODUCTS: Product[] = [
   {

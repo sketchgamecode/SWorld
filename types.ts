@@ -31,3 +31,15 @@ export interface ImageGenerationParams {
   prompt: string;
   size: ImageSize;
 }
+
+export interface CloudSettings {
+  enabled: boolean;
+  endpointUrl: string; // e.g., https://api.jsonbin.io/v3/b/<BIN_ID>
+  apiKey: string;      // Header: X-Master-Key
+}
+
+export interface AppData {
+  products: Product[];
+  cases: CaseStudy[];
+  lastUpdated: number;
+}

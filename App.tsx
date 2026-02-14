@@ -3,8 +3,10 @@ import { Navbar } from './components/Navbar';
 import { ProductList } from './components/ProductList';
 import { AdminDashboard } from './components/AdminDashboard';
 import { ImageGenerator } from './components/ImageGenerator';
-import { Product, CaseStudy } from './types';
-import { INITIAL_PRODUCTS, INITIAL_CASES } from './constants';
+import { AdminLogin } from './components/AdminLogin';
+import { Product, CaseStudy, CloudSettings } from './types';
+import { INITIAL_PRODUCTS, INITIAL_CASES, PUBLIC_READ_CONFIG } from './constants';
+import { fetchCloudData } from './services/dataSync';
 import { ArrowRight, Phone, Mail, ExternalLink } from 'lucide-react';
 
 // Simple router replacement since we are in a single file structure context
@@ -14,40 +16,93 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [cases, setCases] = useState<CaseStudy[]>(INITIAL_CASES);
+  
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
-  // Load products from local storage
+  // Load cloud settings and data on mount
   useEffect(() => {
-    const savedProducts = localStorage.getItem('products');
-    if (savedProducts) {
-      try {
-        setProducts(JSON.parse(savedProducts));
-      } catch (e) {
-        console.error("Failed to parse products from local storage");
-      }
-    }
+    // DEBUG: Output the config to console so admin can inspect via F12
+    console.log("🚀 [System Debug] Loaded Public Config:", PUBLIC_READ_CONFIG);
+
+    const initData = async () => {
+        // 1. First, verify if we have cloud settings
+        // Priority: LocalStorage (User/Admin overrides) -> PUBLIC_READ_CONFIG (Public fallback)
+        let settingsToUse: CloudSettings = PUBLIC_READ_CONFIG;
+        const localSettingsStr = localStorage.getItem('cloudSettings');
+        
+        if (localSettingsStr) {
+            try {
+                const parsed = JSON.parse(localSettingsStr);
+                // Only use local settings if they are valid and enabled
+                if (parsed.enabled && parsed.endpointUrl) {
+                    settingsToUse = parsed;
+                }
+            } catch (e) {
+                console.error("Invalid local settings", e);
+            }
+        }
+
+        let cloudDataFetched = false;
+
+        // 2. Try fetching from cloud if configured
+        if (settingsToUse.enabled && settingsToUse.endpointUrl) {
+            try {
+                const cloudData = await fetchCloudData(settingsToUse);
+                if (cloudData) {
+                    console.log("Synced with cloud data");
+                    setProducts(cloudData.products);
+                    setCases(cloudData.cases);
+                    // Update local cache so next refresh is faster even if offline
+                    localStorage.setItem('products', JSON.stringify(cloudData.products));
+                    localStorage.setItem('cases', JSON.stringify(cloudData.cases));
+                    cloudDataFetched = true;
+                }
+            } catch (e) {
+                console.error("Cloud sync init failed", e);
+            }
+        }
+
+        // 3. If cloud fetch failed or not configured, fall back to localStorage cache
+        if (!cloudDataFetched) {
+            const savedProducts = localStorage.getItem('products');
+            const savedCases = localStorage.getItem('cases');
+            
+            if (savedProducts) {
+              try { setProducts(JSON.parse(savedProducts)); } catch (e) {}
+            }
+            if (savedCases) {
+              try { setCases(JSON.parse(savedCases)); } catch (e) {}
+            }
+        }
+    };
+    initData();
   }, []);
 
-  // Load cases from local storage
-  useEffect(() => {
-    const savedCases = localStorage.getItem('cases');
-    if (savedCases) {
-      try {
-        setCases(JSON.parse(savedCases));
-      } catch (e) {
-        console.error("Failed to parse cases from local storage");
-      }
-    }
-  }, []);
-
-  // Save products
+  // Save products to local cache
   useEffect(() => {
     localStorage.setItem('products', JSON.stringify(products));
   }, [products]);
 
-  // Save cases
+  // Save cases to local cache
   useEffect(() => {
     localStorage.setItem('cases', JSON.stringify(cases));
   }, [cases]);
+
+  const handleNavigate = (page: Page) => {
+      if (page === 'admin' && !isAuthenticated) {
+          setShowLogin(true);
+      } else {
+          setCurrentPage(page);
+      }
+  };
+
+  const handleLoginSuccess = () => {
+      setIsAuthenticated(true);
+      setShowLogin(false);
+      setCurrentPage('admin');
+  };
 
   // Product Handlers
   const handleUpdateProduct = (updatedProduct: Product) => {
@@ -86,9 +141,20 @@ export default function App() {
     }
   };
 
+  const handleImportCases = (newCases: CaseStudy[]) => {
+    if (window.confirm(`即将导入 ${newCases.length} 个案例，这将覆盖当前所有案例数据。确定要继续吗？`)) {
+      setCases(newCases);
+      alert('导入成功！');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Navbar currentPage={currentPage} onNavigate={setCurrentPage} />
+      <Navbar currentPage={currentPage} onNavigate={handleNavigate} />
+
+      {showLogin && (
+          <AdminLogin onLogin={handleLoginSuccess} onCancel={() => setShowLogin(false)} />
+      )}
 
       {currentPage === 'home' && (
         <main>
@@ -181,7 +247,7 @@ export default function App() {
         </main>
       )}
 
-      {currentPage === 'admin' && (
+      {currentPage === 'admin' && isAuthenticated && (
         <AdminDashboard 
           products={products}
           onUpdateProduct={handleUpdateProduct}
@@ -192,6 +258,7 @@ export default function App() {
           onAddCase={handleAddCase}
           onUpdateCase={handleUpdateCase}
           onDeleteCase={handleDeleteCase}
+          onImportCases={handleImportCases}
           onSwitchToGenerator={() => setCurrentPage('generate')}
         />
       )}
