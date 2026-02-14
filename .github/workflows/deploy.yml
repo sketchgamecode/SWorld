@@ -30,6 +30,10 @@ jobs:
           
       - name: Install dependencies
         run: npm install  
+
+      - name: Fix index.html for GitHub Pages
+        run: |
+          sed -i 's|</body>|<script type="module" src="/index.tsx"></script>\n  </body>|' index.html
         
       - name: Build
         run: npm run build
